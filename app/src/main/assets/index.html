@@ -65,9 +65,9 @@ tbody tr:last-child td{border-bottom:0}
     </div>
   </div>
   <div class="header-actions">
-    <button id="exportBtn" class="primary">↓ Ekspor ke Excel (.xls)</button>
+    <button id="exportHistoryBtn" class="primary">↓ Ekspor Riwayat (.csv)</button>
+    <button id="exportSummaryBtn" class="primary">↓ Ekspor Rekap (.csv)</button>
     <button class="danger" id="deleteAllBtn">🗑 Hapus data</button>
-    <button class="primary" id="newBtn">＋ Catat meter</button>
   </div>
 </header>
 <main>
@@ -169,7 +169,7 @@ tbody tr:last-child td{border-bottom:0}
         </table>
       </div>
     </div>
-    <div class="foot">Data disimpan di browser perangkat ini. Ekspor file Excel (.xls) berformat tabel rapi tanpa butuh internet.</div>
+    <div class="foot">Data disimpan di browser perangkat ini. Gunakan tombol ekspor di atas untuk mengunduh laporan ke Excel (.csv).</div>
   </section>
 </div>
 </main>
@@ -281,7 +281,6 @@ $('photo').addEventListener('change',e=>{
 });
 
 $('deleteAllBtn').onclick = () => { if(confirm('Hapus seluruh data?')) { records = []; saveRecords(); render(); } };
-$('resetBtn').onclick=()=>{ setTimeout(()=>{ photoData=''; $('preview').hidden=true; $('ocrBtn').disabled=true; initDropdowns(); },0); };
 
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));
@@ -295,96 +294,42 @@ $('historyBody').addEventListener('click',e=>{
   if(id&&confirm('Hapus catatan ini?')){ records=records.filter(r=>r.id!==id); saveRecords(); render(); }
 });
 
-// ROBUST NATIVE EXCEL TABLE EXPORT (Tanpa CDN, 100% Offline Work)
-function exportToExcel(){
-  const btn=$('exportBtn');
-  btn.disabled=true; btn.textContent='Menyiapkan File Excel…';
-  try {
-    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
-    xml += '<?mso-application progid="Excel.Sheet"?>\n';
-    xml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"\n';
-    xml += ' xmlns:o="urn:schemas-microsoft-com:office:office"\n';
-    xml += ' xmlns:x="urn:schemas-microsoft-com:office:excel"\n';
-    xml += ' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"\n';
-    xml += ' xmlns:html="http://www.w3.org/TR/REC-html40">\n';
-    
-    xml += '<Styles>\n';
-    xml += '<Style ss:id="Header">\n';
-    xml += '<Alignment ss:Horizontal="Center" ss:Vertical="Center"/>\n';
-    xml += '<Borders>\n';
-    xml += '<Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>\n';
-    xml += '<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>\n';
-    xml += '<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>\n';
-    xml += '<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>\n';
-    xml += '</Borders>\n';
-    xml += '<Interior ss:Color="#087F5B" ss:Pattern="Solid"/>\n';
-    xml += '<Font ss:Bold="1" ss:Color="#FFFFFF" ss:Name="Calibri" ss:Size="11"/>\n';
-    xml += '</Style>\n';
-    xml += '<Style ss:id="Cell">\n';
-    xml += '<Borders>\n';
-    xml += '<Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DCE6E0"/>\n';
-    xml += '<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DCE6E0"/>\n';
-    xml += '<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DCE6E0"/>\n';
-    xml += '<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DCE6E0"/>\n';
-    xml += '</Borders>\n';
-    xml += '<Font ss:Name="Calibri" ss:Size="11"/>\n';
-    xml += '</Style>\n';
-    xml += '<Style ss:id="CellCenter">\n';
-    xml += '<Alignment ss:Horizontal="Center" ss:Vertical="Center"/>\n';
-    xml += '<Borders>\n';
-    xml += '<Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DCE6E0"/>\n';
-    xml += '<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DCE6E0"/>\n';
-    xml += '<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DCE6E0"/>\n';
-    xml += '<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#DCE6E0"/>\n';
-    xml += '</Borders>\n';
-    xml += '<Font ss:Name="Calibri" ss:Size="11"/>\n';
-    xml += '</Style>\n';
-    xml += '</Styles>\n';
-    
-    xml += '<Worksheet ss:Name="Riwayat Pencatatan">\n';
-    xml += '<Table>\n';
-    
-    const headers = ['Tanggal', 'Tower', 'Lantai', 'Unit', 'Kode Lokasi', 'Angka Meter (m³)', 'Pemakaian (m³)', 'Catatan'];
-    xml += '<Row ss:Height="25">\n';
-    headers.forEach(h => {
-      xml += `<Cell ss:StyleID="Header"><Data ss:Type="String">${h}</Data></Cell>\n`;
-    });
-    xml += '</Row>\n';
-    
-    sorted().forEach(r => {
-      let u = usageFor(r);
-      xml += '<Row>\n';
-      xml += `<Cell ss:StyleID="CellCenter"><Data ss:Type="String">${r.date}</Data></Cell>\n`;
-      xml += `<Cell ss:StyleID="CellCenter"><Data ss:Type="String">${r.tower}</Data></Cell>\n`;
-      xml += `<Cell ss:StyleID="CellCenter"><Data ss:Type="Number">${r.floor}</Data></Cell>\n`;
-      xml += `<Cell ss:StyleID="CellCenter"><Data ss:Type="Number">${r.unit}</Data></Cell>\n`;
-      xml += `<Cell ss:StyleID="CellCenter"><Data ss:Type="String">${locationKey(r)}</Data></Cell>\n`;
-      xml += `<Cell ss:StyleID="Cell"><Data ss:Type="Number">${r.reading}</Data></Cell>\n`;
-      xml += `<Cell ss:StyleID="Cell"><Data ss:Type="Number">${u === null ? 0 : u}</Data></Cell>\n`;
-      xml += `<Cell ss:StyleID="Cell"><Data ss:Type="String">${r.notes || ''}</Data></Cell>\n`;
-      xml += '</Row>\n';
-    });
-    
-    xml += '</Table>\n';
-    xml += '</Worksheet>\n';
-    xml += '</Workbook>';
-    
-    const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'Laporan_Meter_Air_Rusun_' + new Date().toLocaleDateString('sv-SE') + '.xls';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 3000);
-  } catch(err) {
-    alert('Gagal ekspor: ' + err.message);
-  } finally {
-    btn.disabled=false; btn.textContent='↓ Ekspor ke Excel (.xls)';
-  }
-}
+// EXPORT RIWAYAT KE EXCEL (.csv)
+$('exportHistoryBtn').onclick = () => {
+  if(records.length === 0) { alert('Belum ada data riwayat untuk diekspor.'); return; }
+  let csv = '\uFEFFTanggal,Tower,Lantai,Unit,Kode Lokasi,Angka Meter (m3),Pemakaian (m3),Catatan\n';
+  sorted().forEach(r=>{
+    let u = usageFor(r);
+    csv += `"${r.date}","${r.tower}","${r.floor}","${r.unit}","${locationKey(r)}","${r.reading}","${u===null?'':u}","${(r.notes||'').replace(/"/g,'""')}"\n`;
+  });
+  downloadCSV(csv, 'Laporan_Riwayat_Meter_Air_' + new Date().toLocaleDateString('sv-SE') + '.csv');
+};
 
-$('exportBtn').onclick = exportToExcel;
-$('newBtn').onclick = () => $('tower').focus();
+// EXPORT REKAP PEMAKAIAN KE EXCEL (.csv)
+$('exportSummaryBtn').onclick = () => {
+  if(records.length === 0) { alert('Belum ada data rekap untuk diekspor.'); return; }
+  let csv = '\uFEFFKode Lokasi,Tanggal Terakhir,Angka Meter Terakhir (m3),Pemakaian Terakhir (m3),Status\n';
+  let latest={};
+  sorted().forEach(r=>{let k=locationKey(r);if(!latest[k]||r.date>latest[k].date)latest[k]=r});
+  Object.values(latest).sort((a,b)=>locationKey(a).localeCompare(locationKey(b))).forEach(r=>{
+    let u = usageFor(r);
+    let status = u === null ? 'Awal' : u < 0 ? 'Perlu Cek' : 'Normal';
+    csv += `"${locationKey(r)}","${r.date}","${r.reading}","${u===null||u<0?0:u}","${status}"\n`;
+  });
+  downloadCSV(csv, 'Laporan_Rekap_Pemakaian_Air_' + new Date().toLocaleDateString('sv-SE') + '.csv');
+};
+
+function downloadCSV(csvContent, filename){
+  const blob = new Blob([csvContent], {type: 'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+}
 
 $('ocrBtn').onclick=async()=>{
   if(!photoData){alert('Ambil foto dahulu.');return;}
