@@ -48,6 +48,10 @@ tbody tr:last-child td{border-bottom:0}
 .empty{text-align:center;color:var(--muted);padding:28px}
 .section{display:none}.section.active{display:block}.small{font-size:12px;color:var(--muted)}
 .foot{margin-top:16px;color:var(--muted);font-size:12px}
+/* Modal Export */
+#exportModal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:none;place-items:center;z-index:999;padding:16px}
+#exportModalContent{background:var(--panel);border:1px solid var(--line);border-radius:16px;width:100%;max-width:700px;max-height:90vh;display:flex;flex-direction:column;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,0.3)}
+#exportModalContent textarea{width:100%;height:220px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:12px;font-family:monospace;font-size:12px;resize:none;margin:12px 0}
 @media(max-width:800px){.layout{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
@@ -65,8 +69,7 @@ tbody tr:last-child td{border-bottom:0}
     </div>
   </div>
   <div class="header-actions">
-    <button id="exportHistoryBtn" class="primary">↓ Ekspor Riwayat (.csv)</button>
-    <button id="exportSummaryBtn" class="primary">↓ Ekspor Rekap (.csv)</button>
+    <button id="openExportBtn" class="primary">📋 Salin / Ekspor Excel</button>
     <button class="danger" id="deleteAllBtn">🗑 Hapus data</button>
   </div>
 </header>
@@ -127,7 +130,7 @@ tbody tr:last-child td{border-bottom:0}
           <input id="notes" placeholder="Contoh: meter buram / segel rusak">
         </div>
       </div>
-      <div class="notice">Mode offline: penyimpanan lokal & ekspor Excel dapat digunakan tanpa koneksi internet.</div>
+      <div class="notice">Mode offline: penyimpanan lokal & ekspor data aman digunakan tanpa internet.</div>
       <div class="actions">
         <button type="submit" class="primary">Simpan catatan</button>
         <button type="reset" id="resetBtn">Bersihkan form</button>
@@ -169,11 +172,29 @@ tbody tr:last-child td{border-bottom:0}
         </table>
       </div>
     </div>
-    <div class="foot">Data disimpan di browser perangkat ini. Gunakan tombol ekspor di atas untuk mengunduh laporan ke Excel (.csv).</div>
+    <div class="foot">Data tersimpan di perangkat. Gunakan tombol "Salin / Ekspor Excel" di atas untuk memindahkan data ke Excel.</div>
   </section>
 </div>
 </main>
 </div>
+
+<!-- MODAL EXPORT -->
+<div id="exportModal">
+  <div id="exportModalContent">
+    <h2 style="margin:0 0 4px">Ekspor Data ke Excel</h2>
+    <p style="margin:0 0 12px;color:var(--muted);font-size:13px">Salin teks di bawah ini, lalu *Paste* langsung ke sel A1 di Microsoft Excel / WPS / Google Sheets.</p>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <button id="tabHistExport" class="primary" style="flex:1">Data Riwayat</button>
+      <button id="tabSumExport" class="btn" style="flex:1">Data Rekap</button>
+    </div>
+    <textarea id="exportText" readonly></textarea>
+    <div style="display:flex;justify-content:flex-end;gap:8px">
+      <button id="copyBtn" class="primary">📋 Salin ke Clipboard</button>
+      <button id="closeModalBtn" class="btn">Tutup</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const $=id=>document.getElementById(id);
 const DBKEY='meterair_records_v1';
@@ -294,42 +315,63 @@ $('historyBody').addEventListener('click',e=>{
   if(id&&confirm('Hapus catatan ini?')){ records=records.filter(r=>r.id!==id); saveRecords(); render(); }
 });
 
-// EXPORT RIWAYAT KE EXCEL (.csv)
-$('exportHistoryBtn').onclick = () => {
-  if(records.length === 0) { alert('Belum ada data riwayat untuk diekspor.'); return; }
-  let csv = '\uFEFFTanggal,Tower,Lantai,Unit,Kode Lokasi,Angka Meter (m3),Pemakaian (m3),Catatan\n';
+// MODAL EXPORT HANDLING
+let currentExportType = 'history';
+
+function generateHistoryTSV(){
+  let t = "Tanggal\tTower\tLantai\tUnit\tKode Lokasi\tAngka Meter (m3)\tPemakaian (m3)\tCatatan\n";
   sorted().forEach(r=>{
     let u = usageFor(r);
-    csv += `"${r.date}","${r.tower}","${r.floor}","${r.unit}","${locationKey(r)}","${r.reading}","${u===null?'':u}","${(r.notes||'').replace(/"/g,'""')}"\n`;
+    t += `${r.date}\t${r.tower}\t${r.floor}\t${r.unit}\t${locationKey(r)}\t${r.reading}\t${u===null?'':u}\t${r.notes||''}\n`;
   });
-  downloadCSV(csv, 'Laporan_Riwayat_Meter_Air_' + new Date().toLocaleDateString('sv-SE') + '.csv');
-};
+  return t;
+}
 
-// EXPORT REKAP PEMAKAIAN KE EXCEL (.csv)
-$('exportSummaryBtn').onclick = () => {
-  if(records.length === 0) { alert('Belum ada data rekap untuk diekspor.'); return; }
-  let csv = '\uFEFFKode Lokasi,Tanggal Terakhir,Angka Meter Terakhir (m3),Pemakaian Terakhir (m3),Status\n';
+function generateSummaryTSV(){
+  let t = "Kode Lokasi\tTanggal Terakhir\tAngka Meter Terakhir (m3)\tPemakaian Terakhir (m3)\tStatus\n";
   let latest={};
   sorted().forEach(r=>{let k=locationKey(r);if(!latest[k]||r.date>latest[k].date)latest[k]=r});
   Object.values(latest).sort((a,b)=>locationKey(a).localeCompare(locationKey(b))).forEach(r=>{
     let u = usageFor(r);
     let status = u === null ? 'Awal' : u < 0 ? 'Perlu Cek' : 'Normal';
-    csv += `"${locationKey(r)}","${r.date}","${r.reading}","${u===null||u<0?0:u}","${status}"\n`;
+    t += `${locationKey(r)}\t${r.date}\t${r.reading}\t${u===null||u<0?0:u}\t${status}\n`;
   });
-  downloadCSV(csv, 'Laporan_Rekap_Pemakaian_Air_' + new Date().toLocaleDateString('sv-SE') + '.csv');
+  return t;
+}
+
+$('openExportBtn').onclick = () => {
+  currentExportType = 'history';
+  $('tabHistExport').className = 'primary';
+  $('tabSumExport').className = 'btn';
+  $('exportText').value = generateHistoryTSV();
+  $('exportModal').style.display = 'grid';
 };
 
-function downloadCSV(csvContent, filename){
-  const blob = new Blob([csvContent], {type: 'text/csv;charset=utf-8;'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 3000);
-}
+$('tabHistExport').onclick = () => {
+  currentExportType = 'history';
+  $('tabHistExport').className = 'primary';
+  $('tabSumExport').className = 'btn';
+  $('exportText').value = generateHistoryTSV();
+};
+
+$('tabSumExport').onclick = () => {
+  currentExportType = 'summary';
+  $('tabSumExport').className = 'primary';
+  $('tabHistExport').className = 'btn';
+  $('exportText').value = generateSummaryTSV();
+};
+
+$('copyBtn').onclick = () => {
+  $('exportText').select();
+  navigator.clipboard.writeText($('exportText').value).then(() => {
+    alert('Berhasil disalin! Buka Excel, klik sel A1, lalu Paste (Tempel).');
+  }).catch(() => {
+    document.execCommand('copy');
+    alert('Berhasil disalin! Buka Excel, klik sel A1, lalu Paste (Tempel).');
+  });
+};
+
+$('closeModalBtn').onclick = () => { $('exportModal').style.display = 'none'; };
 
 $('ocrBtn').onclick=async()=>{
   if(!photoData){alert('Ambil foto dahulu.');return;}
