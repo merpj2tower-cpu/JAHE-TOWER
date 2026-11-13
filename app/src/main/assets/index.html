@@ -29,9 +29,8 @@ main{max-width:1200px;margin:auto;padding:24px clamp(14px,3vw,32px) 48px}
 .fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:flex;flex-direction:column;gap:6px}.field.full{grid-column:1/-1}
 label{font-size:12px;color:var(--muted);font-weight:700}
 input,select{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;min-width:0;cursor:pointer}
-input[type=file]{padding:10px;background:var(--bg);border:1px dashed var(--green);border-radius:10px;cursor:pointer}
-.camera{border:1px dashed var(--line);background:var(--bg);border-radius:13px;padding:12px}
-.camera img{width:100%;max-height:240px;object-fit:contain;border-radius:8px;display:block;margin-top:10px}
+.camera{border:2px dashed var(--green);background:var(--soft);border-radius:13px;padding:16px;text-align:center}
+.camera img{width:100%;max-height:220px;object-fit:contain;border-radius:8px;display:block;margin-top:10px}
 .hint{font-size:12px;color:var(--muted);margin-top:7px}
 .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
 .notice{background:var(--warn);border-radius:10px;padding:10px 12px;font-size:12px;margin:12px 0}
@@ -48,10 +47,6 @@ tbody tr:last-child td{border-bottom:0}
 .empty{text-align:center;color:var(--muted);padding:28px}
 .section{display:none}.section.active{display:block}.small{font-size:12px;color:var(--muted)}
 .foot{margin-top:16px;color:var(--muted);font-size:12px}
-/* Modal Export */
-#exportModal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:none;place-items:center;z-index:999;padding:16px}
-#exportModalContent{background:var(--panel);border:1px solid var(--line);border-radius:16px;width:100%;max-width:700px;max-height:90vh;display:flex;flex-direction:column;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,0.3)}
-#exportModalContent textarea{width:100%;height:220px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:12px;font-family:monospace;font-size:12px;resize:none;margin:12px 0}
 @media(max-width:800px){.layout{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
@@ -69,7 +64,8 @@ tbody tr:last-child td{border-bottom:0}
     </div>
   </div>
   <div class="header-actions">
-    <button id="openExportBtn" class="primary">📋 Salin / Ekspor Excel</button>
+    <button id="exportHistoryBtn" class="primary">↓ Ekspor Riwayat (.xls)</button>
+    <button id="exportSummaryBtn" class="primary">↓ Ekspor Rekap (.xls)</button>
     <button class="danger" id="deleteAllBtn">🗑 Hapus data</button>
   </div>
 </header>
@@ -90,7 +86,7 @@ tbody tr:last-child td{border-bottom:0}
 <div class="layout">
   <section class="panel" id="entryPanel">
     <h2>Catat meter baru</h2>
-    <p>Pilih lantai (2–24), unit (1–17), lalu ambil foto meter atau ketik angka.</p>
+    <p>Pilih lantai (2–24), unit (1–17), lalu buka kamera untuk foto meter.</p>
     <form id="entryForm">
       <div class="fields">
         <div class="field">
@@ -110,20 +106,20 @@ tbody tr:last-child td{border-bottom:0}
           <input id="date" type="date" required>
         </div>
         <div class="field full">
-          <label>FOTO METER (KAMERA / GALERI)</label>
+          <label>BUKTI FOTO METER AIR</label>
           <div class="camera">
-            <input id="photo" type="file" accept="image/*" capture="environment">
-            <div style="margin-top:8px;">
-              <button type="button" id="ocrBtn" disabled>🔍 Jalankan OCR (Baca Angka)</button>
+            <input id="photo" type="file" accept="image/*" capture="environment" style="display:none">
+            <button type="button" class="primary" id="triggerCamBtn" style="width:100%;padding:14px;font-size:16px;">📷 Buka Kamera / Ambil Foto</button>
+            <div style="margin-top:10px;">
+              <button type="button" id="ocrBtn" class="btn" disabled>🔍 Jalankan OCR (Baca Angka Otomatis)</button>
             </div>
             <img id="preview" alt="Pratinjau foto meter" hidden>
-            <div class="hint">Ketuk kotak di atas untuk langsung membuka kamera HP atau memilih foto dari galeri.</div>
+            <div class="hint" id="ocrStatus">Ketuk tombol di atas untuk mengaktifkan kamera HP.</div>
           </div>
         </div>
         <div class="field full">
           <label for="reading">ANGKA METER SAAT INI (m³)</label>
           <input id="reading" type="number" min="0" step="0.001" placeholder="Contoh: 125.640" required>
-          <div class="small" id="ocrStatus">Ambil foto lalu jalankan OCR, atau ketik manual.</div>
         </div>
         <div class="field full">
           <label for="notes">CATATAN (opsional)</label>
@@ -172,27 +168,10 @@ tbody tr:last-child td{border-bottom:0}
         </table>
       </div>
     </div>
-    <div class="foot">Data tersimpan di perangkat. Gunakan tombol "Salin / Ekspor Excel" di atas untuk memindahkan data ke Excel.</div>
+    <div class="foot">Data tersimpan di perangkat. Gunakan tombol ekspor di atas untuk mengunduh laporan ke Excel (.xls).</div>
   </section>
 </div>
 </main>
-</div>
-
-<!-- MODAL EXPORT -->
-<div id="exportModal">
-  <div id="exportModalContent">
-    <h2 style="margin:0 0 4px">Ekspor Data ke Excel</h2>
-    <p style="margin:0 0 12px;color:var(--muted);font-size:13px">Salin teks di bawah ini, lalu *Paste* langsung ke sel A1 di Microsoft Excel / WPS / Google Sheets.</p>
-    <div style="display:flex;gap:8px;margin-bottom:8px">
-      <button id="tabHistExport" class="primary" style="flex:1">Data Riwayat</button>
-      <button id="tabSumExport" class="btn" style="flex:1">Data Rekap</button>
-    </div>
-    <textarea id="exportText" readonly></textarea>
-    <div style="display:flex;justify-content:flex-end;gap:8px">
-      <button id="copyBtn" class="primary">📋 Salin ke Clipboard</button>
-      <button id="closeModalBtn" class="btn">Tutup</button>
-    </div>
-  </div>
 </div>
 
 <script>
@@ -257,6 +236,9 @@ function render(){
 
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 
+// Trigger Camera Native Button
+$('triggerCamBtn').onclick = () => $('photo').click();
+
 $('entryForm').addEventListener('submit',e=>{
   e.preventDefault();
   if(!$('floor').value || !$('unit').value){
@@ -269,7 +251,7 @@ $('entryForm').addEventListener('submit',e=>{
   records.push(r);saveRecords();render();alert('Catatan tersimpan di perangkat.');
   $('entryForm').reset();$('date').value=new Date().toLocaleDateString('sv-SE');
   photoData='';$('preview').hidden=true;$('ocrBtn').disabled=true;
-  $('ocrStatus').textContent='Ambil foto lalu jalankan OCR, atau ketik manual.';
+  $('ocrStatus').textContent='Ketuk tombol di atas untuk mengaktifkan kamera HP.';
   initDropdowns();
 });
 
@@ -294,7 +276,7 @@ $('photo').addEventListener('change',e=>{
       $('preview').src = photoData;
       $('preview').hidden = false;
       $('ocrBtn').disabled = false;
-      $('ocrStatus').textContent='Foto siap. Tekan Jalankan OCR.';
+      $('ocrStatus').textContent='Foto berhasil diambil. Tekan Jalankan OCR jika ingin baca angka otomatis.';
     };
     img.src = rd.result;
   };
@@ -315,63 +297,80 @@ $('historyBody').addEventListener('click',e=>{
   if(id&&confirm('Hapus catatan ini?')){ records=records.filter(r=>r.id!==id); saveRecords(); render(); }
 });
 
-// MODAL EXPORT HANDLING
-let currentExportType = 'history';
-
-function generateHistoryTSV(){
-  let t = "Tanggal\tTower\tLantai\tUnit\tKode Lokasi\tAngka Meter (m3)\tPemakaian (m3)\tCatatan\n";
-  sorted().forEach(r=>{
-    let u = usageFor(r);
-    t += `${r.date}\t${r.tower}\t${r.floor}\t${r.unit}\t${locationKey(r)}\t${r.reading}\t${u===null?'':u}\t${r.notes||''}\n`;
-  });
-  return t;
+// ROBUST NATIVE EXCEL TABLE EXPORT (.xls) - Works offline and triggers direct download in Android WebView
+function downloadExcelXML(xmlContent, filename){
+  const blob = new Blob([xmlContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
 }
 
-function generateSummaryTSV(){
-  let t = "Kode Lokasi\tTanggal Terakhir\tAngka Meter Terakhir (m3)\tPemakaian Terakhir (m3)\tStatus\n";
+$('exportHistoryBtn').onclick = () => {
+  if(records.length === 0) { alert('Belum ada data riwayat untuk diekspor.'); return; }
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+  xml += '<?mso-application progid="Excel.Sheet"?>\n';
+  xml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n';
+  xml += '<Styles><Style ss:id="Header"><Interior ss:Color="#087F5B" ss:Pattern="Solid"/><Font ss:Bold="1" ss:Color="#FFFFFF" ss:Name="Calibri" ss:Size="11"/><Alignment ss:Horizontal="Center"/></Style><Style ss:id="Cell"><Font ss:Name="Calibri" ss:Size="11"/></Style></Styles>\n';
+  xml += '<Worksheet ss:Name="Riwayat Pencatatan"><Table>\n';
+  
+  const headers = ['Tanggal', 'Tower', 'Lantai', 'Unit', 'Kode Lokasi', 'Angka Meter (m3)', 'Pemakaian (m3)', 'Catatan'];
+  xml += '<Row ss:Height="25">';
+  headers.forEach(h => xml += `<Cell ss:StyleID="Header"><Data ss:Type="String">${h}</Data></Cell>`);
+  xml += '</Row>\n';
+  
+  sorted().forEach(r => {
+    let u = usageFor(r);
+    xml += '<Row>';
+    xml += `<Cell ss:StyleID="Cell"><Data ss:Type="String">${r.date}</Data></Cell>`;
+    xml += `<Cell ss:StyleID="Cell"><Data ss:Type="String">${r.tower}</Data></Cell>`;
+    xml += `<Cell ss:StyleID="Cell"><Data ss:Type="Number">${r.floor}</Data></Cell>`;
+    xml += `<Cell ss:StyleID="Cell"><Data ss:Type="Number">${r.unit}</Data></Cell>`;
+    xml += `<Cell ss:StyleID="Cell"><Data ss:Type="String">${locationKey(r)}</Data></Cell>`;
+    xml += `<Cell ss:StyleID="Cell"><Data ss:Type="Number">${r.reading}</Data></Cell>`;
+    xml += `<Cell ss:StyleID="Cell"><Data ss:Type="Number">${u === null ? 0 : u}</Data></Cell>`;
+    xml += `<Cell ss:StyleID="Cell"><Data ss:Type="String">${r.notes || ''}</Data></Cell>`;
+    xml += '</Row>\n';
+  });
+  xml += '</Table></Worksheet></Workbook>';
+  
+  downloadExcelXML(xml, 'Laporan_Riwayat_Meter_Air_' + new Date().toLocaleDateString('sv-SE') + '.xls');
+};
+
+$('exportSummaryBtn').onclick = () => {
+  if(records.length === 0) { alert('Belum ada data rekap untuk diekspor.'); return; }
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+  xml += '<?mso-application progid="Excel.Sheet"?>\n';
+  xml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">\n';
+  xml += '<Styles><Style ss:id="Header"><Interior ss:Color="#087F5B" ss:Pattern="Solid"/><Font ss:Bold="1" ss:Color="#FFFFFF" ss:Name="Calibri" ss:Size="11"/><Alignment ss:Horizontal="Center"/></Style><Style ss:id="Cell"><Font ss:Name="Calibri" ss:Size="11"/></Style></Styles>\n';
+  xml += '<Worksheet ss:Name="Rekap Pemakaian"><Table>\n';
+  
+  const headers = ['Kode Lokasi', 'Tanggal Terakhir', 'Angka Meter Terakhir (m3)', 'Pemakaian Terakhir (m3)', 'Status'];
+  xml += '<Row ss:Height="25">';
+  headers.forEach(h => xml += `<Cell ss:StyleID="Header"><Data ss:Type="String">${h}</Data></Cell>`);
+  xml += '</Row>\n';
+  
   let latest={};
   sorted().forEach(r=>{let k=locationKey(r);if(!latest[k]||r.date>latest[k].date)latest[k]=r});
   Object.values(latest).sort((a,b)=>locationKey(a).localeCompare(locationKey(b))).forEach(r=>{
     let u = usageFor(r);
     let status = u === null ? 'Awal' : u < 0 ? 'Perlu Cek' : 'Normal';
-    t += `${locationKey(r)}\t${r.date}\t${r.reading}\t${u===null||u<0?0:u}\t${status}\n`;
+    xml += '<Row>';
+    xml += `<Cell ss:StyleID="Cell"><Data ss:Type="String">${locationKey(r)}</Data></Cell>`;
+    xml += `<Cell ss:StyleID="Cell"><Data ss:Type="String">${r.date}</Data></Cell>`;
+    xml += `<Cell ss:StyleID="Cell"><Data ss:Type="Number">${r.reading}</Data></Cell>`;
+    xml += `<Cell ss:StyleID="Cell"><Data ss:Type="Number">${u === null || u < 0 ? 0 : u}</Data></Cell>`;
+    xml += `<Cell ss:StyleID="Cell"><Data ss:Type="String">${status}</Data></Cell>`;
+    xml += '</Row>\n';
   });
-  return t;
-}
-
-$('openExportBtn').onclick = () => {
-  currentExportType = 'history';
-  $('tabHistExport').className = 'primary';
-  $('tabSumExport').className = 'btn';
-  $('exportText').value = generateHistoryTSV();
-  $('exportModal').style.display = 'grid';
+  xml += '</Table></Worksheet></Workbook>';
+  
+  downloadExcelXML(xml, 'Laporan_Rekap_Pemakaian_Air_' + new Date().toLocaleDateString('sv-SE') + '.xls');
 };
-
-$('tabHistExport').onclick = () => {
-  currentExportType = 'history';
-  $('tabHistExport').className = 'primary';
-  $('tabSumExport').className = 'btn';
-  $('exportText').value = generateHistoryTSV();
-};
-
-$('tabSumExport').onclick = () => {
-  currentExportType = 'summary';
-  $('tabSumExport').className = 'primary';
-  $('tabHistExport').className = 'btn';
-  $('exportText').value = generateSummaryTSV();
-};
-
-$('copyBtn').onclick = () => {
-  $('exportText').select();
-  navigator.clipboard.writeText($('exportText').value).then(() => {
-    alert('Berhasil disalin! Buka Excel, klik sel A1, lalu Paste (Tempel).');
-  }).catch(() => {
-    document.execCommand('copy');
-    alert('Berhasil disalin! Buka Excel, klik sel A1, lalu Paste (Tempel).');
-  });
-};
-
-$('closeModalBtn').onclick = () => { $('exportModal').style.display = 'none'; };
 
 $('ocrBtn').onclick=async()=>{
   if(!photoData){alert('Ambil foto dahulu.');return;}
